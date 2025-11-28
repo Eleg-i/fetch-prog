@@ -6,6 +6,10 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+### v1.0.0
+
+- 正式发布
+
 ### v0.1.0
 
 - 创建
