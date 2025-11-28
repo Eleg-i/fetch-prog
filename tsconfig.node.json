@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowSyntheticDefaultImports": true,
+    "emitDeclarationOnly": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true
+  },
+  "include": ["vite.*.ts"],
+  "exclude": ["node_modules", "dist", "src", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.d.ts"]
+}

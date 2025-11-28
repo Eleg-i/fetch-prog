@@ -1,0 +1,93 @@
+{
+  "name": "@cailiao/pinia-plugin-persistedstate",
+  "version": "1.0.2",
+  "description": "A plugin that provides persistent state for pinia(为 pinia 提供持久化状态的插件)",
+  "type": "module",
+  "module": "dist/index.mjs",
+  "main": "dist/index.cjs",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "outfile": "index",
+  "keywords": [
+    "pinia",
+    "plugin",
+    "persistedstate"
+  ],
+  "author": "Eleg-i",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eleg-i/pinia-plugin-persistedstate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Eleg-i/pinia-plugin-persistedstate/issues"
+  },
+  "homepage": "https://github.com/Eleg-i/pinia-plugin-persistedstate/#readme",
+  "license": "ISC",
+  "scripts": {
+    "build:types": "tsc --emitDeclarationOnly",
+    "build-watch": "vite build --watch",
+    "build": "vite build",
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "prettier": "prettier -w --cache src",
+    "lint": "eslint --fix --cache --ext .js,.ts,.vue,.mjs,cjs --max-warnings=0 src",
+    "verify": "pnpm run type-check && pnpm run prettier && pnpm run lint",
+    "husky": "husky .husky",
+    "prepare": "pnpm run husky",
+    "prepublishOnly": "npm run build -s",
+    "patch": "npm version patch",
+    "minor": "npm version minor",
+    "major": "npm version major",
+    "publish": "npm publish",
+    "postpublish": "git push origin main --follow-tags",
+    "toc": "doctoc --github --title \"# Changelog\" CHANGELOG.md"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/eslint-parser": "^7.28.5",
+    "@babel/plugin-transform-class-properties": "^7.27.1",
+    "@babel/plugin-transform-private-methods": "^7.27.1",
+    "@babel/preset-env": "^7.28.5",
+    "@microsoft/api-extractor": "^7.52.11",
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "doctoc": "^2.2.1",
+    "eslint": "^8.57.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsdoc": "^61.4.1",
+    "eslint-plugin-jsx": "^0.1.0",
+    "eslint-plugin-tree-shaking": "^1.12.2",
+    "eslint-plugin-vue": "^10.6.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "pinia": "^3.0.4",
+    "prettier": "^3.6.2",
+    "prettier-eslint": "^16.4.2",
+    "typescript": "^5.9.2",
+    "unplugin-dts": "1.0.0-beta.6",
+    "vite": "npm:rolldown-vite@latest",
+    "vite-plugin-dts": "^4.5.4",
+    "vue-eslint-parser": "^8.3.0"
+  },
+  "dependencies": {
+    "@cailiao/locks": "^1.0.1",
+    "es-toolkit": "^1.42.0"
+  },
+  "peerDependencies": {
+    "pinia": "~3.0.0",
+    "vue": "~3.0.0"
+  }
+}
