@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@cailiao/locks':
-        specifier: ^1.0.1
-        version: 1.0.1
       es-toolkit:
         specifier: ^1.42.0
         version: 1.42.0
@@ -606,9 +603,6 @@ packages:
   '@babel/types@7.28.5':
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
-
-  '@cailiao/locks@1.0.1':
-    resolution: {integrity: sha512-To9STKyQlQ/QgOyxQshS7Npb88SgwaF9SmScOl50XGMVUaRhskkikkn3WLHTa1FLAVzK7yXbtbawH5BJTy7JyA==}
 
   '@emnapi/core@1.7.1':
     resolution: {integrity: sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg==}
@@ -3654,10 +3648,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
-
-  '@cailiao/locks@1.0.1':
-    dependencies:
-      es-toolkit: 1.42.0
 
   '@emnapi/core@1.7.1':
     dependencies:

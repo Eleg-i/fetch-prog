@@ -1,7 +1,7 @@
 {
-  "name": "@cailiao/pinia-plugin-persistedstate",
+  "name": "fetch-prog",
   "version": "1.0.0",
-  "description": "A plugin that provides persistent state for pinia(为 pinia 提供持久化状态的插件)",
+  "description": "A lightweight axios-like fetch wrapper with built-in progress tracking for both uploads and downloads. Simple API, zero dependencies.(一个基于 fetch 的轻量 axios 风格请求库，支持上传和下载进度跟踪，简单 API，零依赖)",
   "type": "module",
   "module": "dist/index.mjs",
   "main": "dist/index.cjs",
@@ -22,19 +22,24 @@
   "types": "./dist/index.d.ts",
   "outfile": "index",
   "keywords": [
-    "pinia",
-    "plugin",
-    "persistedstate"
+    "fetch",
+    "progress",
+    "upload",
+    "download",
+    "axios",
+    "lightweight",
+    "zero-dependencies",
+    "stream"
   ],
   "author": "Eleg-i",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eleg-i/pinia-plugin-persistedstate.git"
+    "url": "git+https://github.com/Eleg-i/fetch-prog.git"
   },
   "bugs": {
-    "url": "https://github.com/Eleg-i/pinia-plugin-persistedstate/issues"
+    "url": "https://github.com/Eleg-i/fetch-prog/issues"
   },
-  "homepage": "https://github.com/Eleg-i/pinia-plugin-persistedstate/#readme",
+  "homepage": "https://github.com/Eleg-i/fetch-prog/#readme",
   "license": "ISC",
   "scripts": {
     "build:types": "tsc --emitDeclarationOnly",
@@ -83,11 +88,6 @@
     "vue-eslint-parser": "^8.3.0"
   },
   "dependencies": {
-    "@cailiao/locks": "^1.0.1",
     "es-toolkit": "^1.42.0"
-  },
-  "peerDependencies": {
-    "pinia": "~3.0.0",
-    "vue": "~3.0.0"
   }
 }
