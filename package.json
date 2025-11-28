@@ -1,6 +1,6 @@
 {
   "name": "@cailiao/pinia-plugin-persistedstate",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "A plugin that provides persistent state for pinia(为 pinia 提供持久化状态的插件)",
   "type": "module",
   "module": "dist/index.mjs",
