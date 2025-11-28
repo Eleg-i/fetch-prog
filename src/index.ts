@@ -50,6 +50,7 @@ interface Options {
   // 需要发送的数据，对 POST 请求，会先序列化后发送，对于 GET 请求，会将键值对的 value 按 URL 编码序列化。
   data?: Body
 
+  // restful 请求参数，存在于路径中
   params?: Record<string, SerializableValue> | SerializableValue[]
 
   // 请求内容长度
@@ -95,6 +96,9 @@ interface Options {
 
   // 上传进度
   onUploadProgress?: (progress: Progress) => void
+
+  /** @todo 下载进度 */
+  onDownloadProgress?: (progress: Progress) => void
 
   // 异常处理
   onerror?: GuardError
