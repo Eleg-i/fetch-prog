@@ -11,7 +11,7 @@ fetch-prog is an enhanced request library based on the native Fetch API, providi
 Install the package
 
 ```bash
-npm i @cailiao/fetch-prog
+npm i fetch-prog
 ```
 
 ## Basic Usage
@@ -19,7 +19,7 @@ npm i @cailiao/fetch-prog
 ### Import and Initialization
 
 ```javascript
-import Fetch from '@cailiao/fetch-prog'
+import Fetch from 'fetch-prog'
 
 // Create a request client instance
 const fetchClient = new Fetch({

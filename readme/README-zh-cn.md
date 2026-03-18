@@ -11,7 +11,7 @@ fetch-prog 是一个基于原生 Fetch API 的增强型请求库，提供了丰�
 安装依赖包
 
 ```bash
-npm i @cailiao/fetch-prog
+npm i fetch-prog
 ```
 
 ## 基本用法
@@ -19,7 +19,7 @@ npm i @cailiao/fetch-prog
 ### 导入与初始化
 
 ```javascript
-import Fetch from '@cailiao/fetch-prog'
+import Fetch from 'fetch-prog'
 
 // 创建请求客户端实例
 const fetchClient = new Fetch({
