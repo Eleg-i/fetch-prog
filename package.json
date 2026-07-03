@@ -45,10 +45,11 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build-watch": "vite build --watch",
     "build": "vite build",
+    "test:unit": "vitest run",
     "type-check": "tsc --noEmit --skipLibCheck",
-    "prettier": "prettier -w --cache src",
-    "lint": "eslint --fix --cache --ext .js,.ts,.vue,.mjs,cjs --max-warnings=0 src",
-    "verify": "pnpm run type-check && pnpm run prettier && pnpm run lint",
+    "prettier": "prettier -w --cache src test vitest.config.ts",
+    "lint": "eslint --fix --cache --ext .js,.ts,.vue,.mjs,cjs --max-warnings=0 src test vitest.config.ts",
+    "verify": "pnpm run type-check && pnpm run prettier && pnpm run lint && pnpm run test:unit",
     "husky": "husky .husky",
     "prepare": "pnpm run husky",
     "prepublishOnly": "npm run build -s",
@@ -85,6 +86,7 @@
     "unplugin-dts": "1.0.0-beta.6",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.9",
     "vue-eslint-parser": "^8.3.0"
   },
   "dependencies": {
