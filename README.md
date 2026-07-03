@@ -1,6 +1,6 @@
 # fetch-prog —— Enhanced Fetch API Request Library
 
-[简体中文](./readme/README-zh-cn.md) | English
+[简体中文](./readme/README-zh-cn.md) | English | [API Reference](./readme/API.md)
 
 ## Description
 

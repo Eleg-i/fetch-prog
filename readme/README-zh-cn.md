@@ -1,6 +1,6 @@
 # fetch-prog —— 增强型 Fetch API 请求库
 
-简体中文 | [English](../README.md)
+简体中文 | [English](../README.md) | [API 参考](./API.md)
 
 ## 描述
 
