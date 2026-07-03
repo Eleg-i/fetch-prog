@@ -1,6 +1,6 @@
 {
   "name": "fetch-prog",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "A lightweight axios-like fetch wrapper with built-in progress tracking for both uploads and downloads. Simple API, zero dependencies.(一个基于 fetch 的轻量 axios 风格请求库，支持上传和下载进度跟踪，简单 API，零依赖)",
   "type": "module",
   "module": "dist/index.mjs",
