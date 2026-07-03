@@ -60,7 +60,7 @@ const client = new Fetch({
 |------|------|--------|------|
 | `fetch<TRes>(opt)` | 请求配置 | `Promise<TRes>` | 发送请求，默认响应类型是 `ExtendableResponse` |
 | `fetch<TRes, TData>(opt)` | 请求配置 | `Promise<TRes>` | 发送请求，并约束 `data` 必须匹配 `TData` 且可序列化 |
-| `guard(guardOpt)` | 拦截器配置 | `void` | 注册请求/响应拦截器 |
+| `guard(guardOpt)` | 拦截器配置 | `{ request?: number; response?: number }` | 注册请求/响应拦截器，并返回可用于移除的索引 |
 | `unGuard(opt)` | 拦截器索引配置 | `void` | 移除指定请求/响应拦截器 |
 
 ## 构造函数参数
@@ -108,8 +108,7 @@ fetch<TRes, TData>(
 |----------|--------------|
 | 未传 | 按 `GET` 处理 |
 | `GET`、`DELETE`、`OPTIONS`、`HEAD` | 走 URL 查询参数和路径参数处理，最终不传请求体 |
-| `POST`、`PUT` | 走请求体序列化处理 |
-| `PATCH` | 类型中允许，但当前实现会抛出 `请求方法 PATCH 不允许！` |
+| `POST`、`PUT`、`PATCH` | 走请求体序列化处理 |
 
 ## 请求配置 Options
 
@@ -146,8 +145,8 @@ interface Options {
 | `method` | 字符串联合类型 | 否 | `'GET'` | 请求方法。当前实际支持见 [分发行为](#分发行为) |
 | `baseURL` | `string` | 否 | 构造函数中的 `baseURL` 或 `''` | 与相对 `url` 组合生成最终请求地址 |
 | `headers` | `HeadersInit` | 否 | `{}` | 请求头。支持对象或二维数组形式 |
-| `paramsSerializer` | `(params: object) => string` | 否 | 无 | 类型中存在，但当前实现没有调用该函数 |
-| `data` | `LooseFetchData` / `SerializableParam<TData>` | 否 | 无 | 请求数据。GET 类请求会转为查询字符串；POST/PUT 会作为请求体发送 |
+| `paramsSerializer` | `(params: object) => string` | 否 | 无 | 自定义 GET 类请求中对象 `data` 的查询字符串序列化 |
+| `data` | `LooseFetchData` / `SerializableParam<TData>` | 否 | 无 | 请求数据。GET 类请求会转为查询字符串；POST/PUT/PATCH 会作为请求体发送 |
 | `params` | `Record<string, SerializableValue> \| SerializableValue[]` | 否 | 无 | RESTful 路径参数。对象会按属性值追加到路径；数组会按顺序追加到路径 |
 | `contentLength` | `number` | 否 | 无 | 上传流总字节数，用于计算 `progress` 和 `total` |
 | `timeout` | `number` | 否 | 构造函数中的 `timeout` 或 `60000` | 请求超时时间，单位毫秒 |
@@ -173,9 +172,9 @@ interface Options {
 
 | 类型 | 发送行为 |
 |------|----------|
-| 普通对象 / 数组 | 非 GET 类请求中会先原地清理 `undefined` 字段，再 `JSON.stringify(data)`，并默认设置 `content-type: application/json` |
+| 普通对象 / 数组 | 非 GET 类请求中会复制并清理 `undefined` 字段，再 `JSON.stringify(data)`，并默认设置 `content-type: application/json` |
 | `string` | 原样作为请求体，默认 `content-type: text/plain` |
-| `FormData` | 原样作为请求体；含 `File` 时当前实现设置 `multipart/form-data`，否则设置 `application/x-www-form-urlencoded` |
+| `FormData` | 原样作为请求体；不主动设置 `content-type`，交给浏览器自动处理 multipart boundary |
 | `ArrayBuffer` | 原样作为请求体，默认 `content-type: application/octet-stream` |
 | `Blob` | 原样作为请求体，默认使用 `blob.type` |
 | `ReadableStream<Uint8Array>` | 原样或包裹进度处理后作为请求体，默认 `content-type: application/octet-stream`，并设置 `duplex: 'half'` |
@@ -258,7 +257,14 @@ type GuardType = {
 
 ### 返回值
 
-`guard()` 当前返回 `void`。
+`guard()` 返回已注册拦截器的索引：
+
+```typescript
+{
+  request?: number
+  response?: number
+}
+```
 
 请求拦截器内部会按注册顺序执行。响应拦截器也会按注册顺序执行，前一个响应拦截器的返回值会成为后续处理链中的结果，并最终成为 `fetch()` 的 resolved value。
 
@@ -284,7 +290,7 @@ client.unGuard({
 | `request` | `number` | 否 | 要移除的请求拦截器索引 |
 | `response` | `number` | 否 | 要移除的响应拦截器索引 |
 
-`unGuard()` 返回 `void`。当前 `guard()` 不返回索引，因此调用方需要自行管理索引；并且底层使用数组 `splice` 移除拦截器，移除后后续拦截器索引会变化。
+`unGuard()` 返回 `void`。`guard()` 返回的索引可直接传给 `unGuard()`。底层会记录已移除索引并在执行时跳过，不会移动后续拦截器索引。
 
 ## FetchError
 
@@ -381,17 +387,3 @@ type SerializableParam<T> = T & SerializableRootOf<T>
 | `Request.keepalive` | [MDN Request.keepalive](https://developer.mozilla.org/docs/Web/API/Request/keepalive) |
 | `Request.referrer` | [MDN Request.referrer](https://developer.mozilla.org/docs/Web/API/Request/referrer) |
 | `Request.referrerPolicy` | [MDN Request.referrerPolicy](https://developer.mozilla.org/docs/Web/API/Request/referrerPolicy) |
-
-## 当前实现注意点
-
-| 项目 | 当前状态 |
-|------|----------|
-| `PATCH` | 类型中包含，但当前 `fetch()` 分发逻辑不支持，会抛错 |
-| `paramsSerializer` | 类型中包含，但当前没有被调用 |
-| `onDownloadProgress` | 类型中包含，并标注 `@todo`，当前没有实现下载进度 |
-| `guard()` 返回值 | 当前返回 `void`，不能直接拿到拦截器 id |
-| `unGuard()` 索引 | 当前用数组索引和 `splice` 移除，移除后后续索引会变化 |
-| `Progress` 类型 | 源码中存在，但根入口声明没有作为命名类型导出 |
-| `extra` / `isRetry` | 会进入配置对象，但库内部当前不主动消费，主要供拦截器或业务代码使用 |
-| 普通对象 `data` | 请求前会原地删除 `undefined` 字段，调用方传入对象可能被修改 |
-| `FormData` 的 `content-type` | 当前实现会主动设置 `multipart/form-data` 或 `application/x-www-form-urlencoded`；上传文件时这可能影响浏览器自动生成 multipart boundary |

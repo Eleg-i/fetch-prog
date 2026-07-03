@@ -1,7 +1,7 @@
 import { merge } from '../node_modules/es-toolkit/dist/object/merge.mjs'
 import type { ExtendableResponse, LooseFetchData, SerializableParam } from './types/serializable'
 import { pipeThroughWithError, type Progress } from './utils/bytes'
-import { treeShake } from './utils/object'
+import { normalizeData } from './utils/object'
 import { isSameOrigin, joinPath } from './utils/url'
 
 export type { ExtendableResponse, LooseFetchData, SerializableParam } from './types/serializable'
@@ -22,6 +22,12 @@ interface AbortEvent extends Event {
 type GuardType = {
   request?: GuradRequest | { handler?: GuradRequest; errorHandler?: GuardError }
   response?: GuardResponse | { handler?: GuardResponse; errorHandler?: GuardError }
+}
+
+// 已注册守卫的索引集合，用于后续 unGuard 精准移除。
+type GuardIds = {
+  request?: number
+  response?: number
 }
 
 type Body = LooseFetchData
@@ -143,14 +149,17 @@ class FetchError extends Error {
 class Interceptors<T extends GuradRequest | GuardResponse> {
   handlers: T[]
 
-  errorHandlers: GuardError[]
+  errorHandlers: Map<number, GuardError>
+
+  ejectedIds: Set<number>
 
   /**
    * 构造器
    */
   constructor() {
     this.handlers = []
-    this.errorHandlers = []
+    this.errorHandlers = new Map()
+    this.ejectedIds = new Set()
   }
 
   /**
@@ -160,19 +169,21 @@ class Interceptors<T extends GuradRequest | GuardResponse> {
    * @returns 返回拦截器 索引
    */
   use(handler: T, errorHander?: GuardError) {
-    if (handler) this.handlers.push(handler)
-    if (errorHander) this.errorHandlers.push(errorHander)
+    this.handlers.push(handler)
+    const id = this.handlers.length - 1
 
-    return this.handlers.length - 1
+    if (errorHander) this.errorHandlers.set(id, errorHander)
+
+    return id
   }
 
   /**
    * 删除拦截器
    * @param id 拦截器索引
-   * @todo 这里的移除有问题，id 是索引，但是这样移除会修改数组长度，并移动后续拦截器所在的索引，会导致后续第二次 eject 时会移除错误的 handler
    */
   eject(id: number) {
-    this.handlers.splice(id, 1)
+    this.ejectedIds.add(id)
+    this.errorHandlers.delete(id)
   }
 
   /**
@@ -180,6 +191,17 @@ class Interceptors<T extends GuradRequest | GuardResponse> {
    */
   clear() {
     this.handlers = []
+    this.errorHandlers.clear()
+    this.ejectedIds.clear()
+  }
+
+  /**
+   * 判断拦截器是否已被移除
+   * @param id 拦截器索引
+   * @returns 返回拦截器是否已被移除
+   */
+  isEjected(id: number) {
+    return this.ejectedIds.has(id)
   }
 }
 
@@ -279,17 +301,17 @@ export default class Fetch {
 
     if (!url) throw new Error('请求地址不能为空！')
 
-    const { data } = opt
+    const normalizedOpt = {
+      ...opt,
+      data: normalizeData(opt.data)
+    }
 
-    // 清除未定义值的参数
-    if (typeof data === 'object' && data && !Array.isArray(data)) treeShake(data)
-
-    const mergedOpt = merge({ ...this.#fetchDefaultOpt }, opt) as Options
+    const mergedOpt = merge({ ...this.#fetchDefaultOpt }, normalizedOpt) as Options
 
     if (['GET', 'DELETE', 'OPTIONS', 'HEAD'].includes(method))
       return this.#get(mergedOpt) as Promise<unknown>
 
-    if (['POST', 'PUT'].includes(method)) return this.#post(mergedOpt) as Promise<unknown>
+    if (['POST', 'PUT', 'PATCH'].includes(method)) return this.#post(mergedOpt) as Promise<unknown>
 
     throw new Error(`请求方法 ${method} 不允许！`)
   }
@@ -300,7 +322,7 @@ export default class Fetch {
    * @returns 返回响应
    */
   #get(opt: Options) {
-    const { data, url, params } = opt
+    const { data, paramsSerializer, url, params } = opt
     const originHost = url.match(/^(http|https):\/\/[^/]+/)?.[0]
     const urlParsed = new URL(url, 'http://tmp')
     const urlSearchParams = new URLSearchParams(urlParsed.search)
@@ -312,14 +334,16 @@ export default class Fetch {
       else if (typeof data === 'object' && data !== null) {
         const _data = data as SerializableObject
 
-        for (const _key in _data) {
-          const key = typeof _key === 'string' ? _key : JSON.stringify(_key)
-          const _value = _data[key]
-          const value = typeof _value === 'string' ? _value : JSON.stringify(_value)
+        if (paramsSerializer) urlParsed.search = paramsSerializer(_data)
+        else
+          for (const _key in _data) {
+            const key = typeof _key === 'string' ? _key : JSON.stringify(_key)
+            const _value = _data[key]
+            const value = typeof _value === 'string' ? _value : JSON.stringify(_value)
 
-          urlSearchParams.append(key, value)
-          urlParsed.search = urlSearchParams.toString()
-        }
+            urlSearchParams.append(key, value)
+            urlParsed.search = urlSearchParams.toString()
+          }
       }
     }
 
@@ -365,8 +389,13 @@ export default class Fetch {
         headers: Record<string, string> = {}
 
     const abortController = new AbortController()
-    const reqHandlers = this.#interceptors.request.handlers
-    const transfOpt = reqHandlers.reduce((acc, handler) => handler(acc), opt as Options) as Options
+    const reqInterceptors = this.#interceptors.request
+    const reqHandlers = reqInterceptors.handlers
+    let transfOpt = opt
+
+    for (const [id, handler] of reqHandlers.entries())
+      if (!reqInterceptors.isEjected(id)) transfOpt = handler(transfOpt)
+
     const {
       baseURL: baseUrl,
       cache,
@@ -483,7 +512,8 @@ export default class Fetch {
     let result: ExtendableResponse | undefined = await req
 
     const { status, statusText, ok } = result
-    const resHandlers = this.#interceptors.response.handlers
+    const resInterceptors = this.#interceptors.response
+    const resHandlers = resInterceptors.handlers
 
     if (!ok)
       await this.#handleResError({
@@ -492,8 +522,9 @@ export default class Fetch {
         opt: transfOpt
       })
 
-    for (const handler of resHandlers)
-      result = (await handler(transfOpt, result)) as ExtendableResponse
+    for (const [id, handler] of resHandlers.entries())
+      if (!resInterceptors.isEjected(id))
+        result = (await handler(transfOpt, result)) as ExtendableResponse
 
     return result!
   }
@@ -523,7 +554,7 @@ export default class Fetch {
       opt
     )
     const { onerror: firstErrorHandler } = opt
-    const resErrHanders = this.#interceptors.response.errorHandlers
+    const resErrHanders = this.#interceptors.response.errorHandlers.values()
 
     if (firstErrorHandler) {
       const nextError = await firstErrorHandler(
@@ -571,7 +602,7 @@ export default class Fetch {
       opt
     )
     const { onerror: firstErrorHandler } = opt
-    const reqErrHanders = this.#interceptors.request.errorHandlers
+    const reqErrHanders = this.#interceptors.request.errorHandlers.values()
 
     if (firstErrorHandler) {
       const nextError = await firstErrorHandler(
@@ -599,19 +630,24 @@ export default class Fetch {
    * @param guardOpt          守卫设置
    * @param guardOpt.request  请求守卫
    * @param guardOpt.response 响应守卫
+   * @returns 返回已注册守卫的索引
    */
-  guard({ request, response }: GuardType) {
+  guard({ request, response }: GuardType): GuardIds {
+    const ids: GuardIds = {}
+
     if (typeof request === 'function') {
-      this.#interceptors.request.use(request)
+      ids.request = this.#interceptors.request.use(request)
     } else if (request?.handler) {
-      this.#interceptors.request.use(request.handler, request?.errorHandler)
+      ids.request = this.#interceptors.request.use(request.handler, request?.errorHandler)
     }
 
     if (typeof response === 'function') {
-      this.#interceptors.response.use(response)
+      ids.response = this.#interceptors.response.use(response)
     } else if (response?.handler) {
-      this.#interceptors.response.use(response.handler, response?.errorHandler)
+      ids.response = this.#interceptors.response.use(response.handler, response?.errorHandler)
     }
+
+    return ids
   }
 
   /**
@@ -674,13 +710,8 @@ function genSerializedData(data: Body): SerializedData {
  * @returns 返回内容类型
  */
 function genContentType(data?: Body) {
-  if (data instanceof FormData) {
-    for (const pair of data.entries()) {
-      if (pair[1] instanceof File) return 'multipart/form-data'
-    }
-
-    return 'application/x-www-form-urlencoded'
-  } else if (
+  if (data instanceof FormData) return
+  else if (
     data instanceof ArrayBuffer ||
     ArrayBuffer.isView(data) ||
     data instanceof ReadableStream
