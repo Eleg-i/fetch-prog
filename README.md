@@ -181,6 +181,7 @@ Use this pattern for typed API request objects: the first generic describes the 
 | `ExtendableResponse<E>` | Native `Response` with application-defined response fields |
 | `SerializableParam<T>` | Serializable request body constraint for `fetch<TRes, TData>()` |
 | `LooseFetchData` | Supported request body values for regular `fetch<TRes>()` calls |
+| `LooseSerializableRoot` | JSON-like object/array root used by loose `data` validation |
 | `Options` | Request options |
 | `FetchError` | Request/response error |
 
@@ -271,9 +272,10 @@ fetchClient.guard({
     // `response` is ExtendableResponse (defaults to native Response).
     // Attach custom fields as needed; the return value becomes the next
     // interceptor input and ultimately what fetch() resolves to.
-    const data = response.json()
     Object.defineProperty(response, 'data', {
-      value: data
+      get() {
+        return response.json()
+      }
     })
     return response
   }

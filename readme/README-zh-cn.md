@@ -181,6 +181,7 @@ await client.fetch<CreateUserResponse, CreateUserRequest>({
 | `ExtendableResponse<E>` | 带有应用自定义响应字段的原生 `Response` |
 | `SerializableParam<T>` | `fetch<ResT, DataT>()` 使用的可序列化请求体约束 |
 | `LooseFetchData` | 普通 `fetch<ResT>()` 调用支持的请求体类型 |
+| `LooseSerializableRoot` | 宽松 `data` 校验使用的 JSON 对象/数组根类型 |
 | `Options` | 请求配置 |
 | `FetchError` | 请求/响应错误 |
 
@@ -270,9 +271,10 @@ fetchClient.guard({
   response: (config, response) => {
     // `response` 类型为 ExtendableResponse（默认即原生 Response）。
     // 按需挂载自定义字段；返回值会传给下一个拦截器，并最终成为 fetch() 的 resolve 值。
-    const data = response.json()
     Object.defineProperty(response, 'data', {
-      value: data
+      get() {
+        return response.json()
+      }
     })
     return response
   }
