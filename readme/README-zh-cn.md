@@ -43,7 +43,10 @@ fetchClient.fetch({
   }
 })
 .then(response => {
-  console.log('响应数据:', response.data)
+  return response.json()
+})
+.then(data => {
+  console.log('响应数据:', data)
 })
 .catch(error => {
   console.error('请求错误:', error)
@@ -56,6 +59,130 @@ fetchClient.fetch({
   data: { name: '张三', age: 30 }
 })
 ```
+
+默认情况下，`fetch()` 返回原生 `Response` 对象。响应拦截器可以根据应用需要转换返回值，或为响应对象挂载额外字段。
+
+## TypeScript 支持
+
+fetch-prog 使用 TypeScript 编写，并导出请求、响应和错误处理相关类型，方便在应用代码中复用。
+
+### 响应类型
+
+`fetch<TRes>()` 的返回类型为 `Promise<TRes>`。未指定 `TRes` 时，返回值类型为 `ExtendableResponse`，也就是默认等价于原生 `Response` 的可扩展响应类型。
+
+```typescript
+import Fetch from 'fetch-prog'
+import type { ExtendableResponse } from 'fetch-prog'
+
+const client = new Fetch()
+
+const res = await client.fetch({ url: '/users' })
+const data = await res.json()
+
+type AppResponse = ExtendableResponse<{
+  readonly data: Promise<unknown>
+}>
+
+const appRes = await client.fetch<AppResponse>({ url: '/users' })
+const appData = await appRes.data
+```
+
+当响应拦截器会添加 `data`、`cookies` 或标准化后的元信息时，可以用 `ExtendableResponse<E>` 描述这些字段。运行时字段仍由你的拦截器实际生成。
+
+### 请求体类型
+
+`data` 选项支持可序列化请求体，也支持常见的非 JSON 载荷。对于 JSON-like 请求体，fetch-prog 会在类型层面拒绝不可序列化值，因此包含 `symbol`、`function`、`bigint` 等值的对象会在运行前暴露为类型错误。若请求体是 API 契约的一部分，可以将它作为第二个泛型参数传入。
+
+| 用法 | 示例 | 校验 |
+|------|------|------|
+| 普通请求体 | `fetch<ResT>({ data })` | 支持 JSON-like 值以及流/二进制载荷 |
+| 契约请求体 | `fetch<ResT, DataT>({ data })` | 要求 `data` 与 `DataT` 匹配，且保持可序列化 |
+
+```typescript
+type User = {
+  id: string
+  name: string
+}
+
+type CreateUserRequest = {
+  name: string
+  age: number
+}
+
+type CreateUserResponse = {
+  user: User
+}
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data: { name: '张三', age: 30 }
+})
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data: { name: '张三', age: 30, extra: true } // TypeScript 错误
+})
+
+await client.fetch({
+  url: '/users',
+  method: 'POST',
+  data: { name: '张三', token: Symbol('token') } // TypeScript 错误
+})
+
+await client.fetch({
+  url: '/upload',
+  method: 'POST',
+  data: new FormData()
+})
+```
+
+可序列化值包括 `string`、`number`、`boolean`、`null`、`undefined`、`Date`、装箱类型 `String` / `Number` / `Boolean`、数组和普通对象。`FormData`、`Blob`、`ArrayBuffer`、`ReadableStream` 和 `string` 也可用于非 JSON 请求。
+
+### 请求体类型推断
+
+默认的 `fetch<ResT>()` 写法更适合内联对象字面量，因为 TypeScript 可以直接检查这个对象是否满足可序列化请求体类型。
+
+```typescript
+await client.fetch<CreateUserResponse>({
+  url: '/users',
+  method: 'POST',
+  data: { name: '张三', age: 30 }
+})
+```
+
+当 `data` 来自一个 `interface` 类型变量时，TypeScript 可能无法证明该变量满足默认的递归可序列化类型。遇到这种情况时，优先使用双泛型写法，而不是把请求体改成 `any`。
+
+```typescript
+interface CreateUserRequest {
+  name: string
+  age: number
+}
+
+const data: CreateUserRequest = {
+  name: '张三',
+  age: 30
+}
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data
+})
+```
+
+这适合已经有明确类型的 API 请求对象：第一个泛型表示响应类型，第二个泛型表示请求体契约。
+
+### 导出的类型
+
+| 类型 | 说明 |
+|------|------|
+| `ExtendableResponse<E>` | 带有应用自定义响应字段的原生 `Response` |
+| `SerializableParam<T>` | `fetch<ResT, DataT>()` 使用的可序列化请求体约束 |
+| `LooseFetchData` | 普通 `fetch<ResT>()` 调用支持的请求体类型 |
+| `Options` | 请求配置 |
+| `FetchError` | 请求/响应错误 |
 
 ## 进度监控
 
@@ -141,13 +268,13 @@ fetchClient.guard({
 // 添加响应拦截器
 fetchClient.guard({
   response: (config, response) => {
-    // 对响应数据做点什么
-    // 例如：统一处理数据格式
-    return {
-      ...response,
-      // 假设响应数据在 response.body 中
-      data: response.json()
-    }
+    // `response` 类型为 ExtendableResponse（默认即原生 Response）。
+    // 按需挂载自定义字段；返回值会传给下一个拦截器，并最终成为 fetch() 的 resolve 值。
+    const data = response.json()
+    Object.defineProperty(response, 'data', {
+      value: data
+    })
+    return response
   }
 })
 ```
@@ -192,7 +319,7 @@ fetchClient.unGuard({ request: requestInterceptorId })
 | `baseURL` | string | '' | 基础 URL，会自动加在 `url` 前面 |
 | `headers` | HeadersInit | {} | 请求头 |
 | `params` | object/array | - | URL 参数 |
-| `data` | any | - | 请求数据 |
+| `data` | `LooseFetchData` / `SerializableParam<T>` | - | 请求体。需要按 API 契约校验请求体时，可使用 `fetch<ResT, DataT>()`。 |
 | `contentLength` | number | - | 请求内容长度（用于进度计算） |
 | `timeout` | number | 60000 | 请求超时时间（毫秒） |
 | `withCredentials` | boolean | false | 是否携带凭证 |
@@ -330,6 +457,10 @@ fetchClient.fetch({
 4. **使用 throttle 优化进度更新**：在处理上传/下载进度时，使用 throttle 限制更新频率，避免过多的 UI 更新
 
 5. **错误处理分离**：将错误处理逻辑集中在一个地方，方便统一管理错误展示
+
+6. **显式声明自定义响应字段**：响应拦截器添加的字段可用 `ExtendableResponse<{ ... }>` 描述
+
+7. **为 API 请求体声明类型**：请求载荷需要匹配服务端契约时，使用 `fetch<ResT, DataT>()`
 
 ## 支持
 

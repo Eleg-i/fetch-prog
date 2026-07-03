@@ -1,5 +1,17 @@
 declare global {
-  type SerializableValue = string | number | null | undefined | boolean
+  type SerializableBoxedPrimitive =
+    | InstanceType<StringConstructor>
+    | InstanceType<NumberConstructor>
+    | InstanceType<BooleanConstructor>
+
+  type SerializableValue =
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | Date
+    | SerializableBoxedPrimitive
 
   type SerializableObject = {
     [k in string | number]: Serializable

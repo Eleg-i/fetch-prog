@@ -43,7 +43,10 @@ fetchClient.fetch({
   }
 })
 .then(response => {
-  console.log('Response data:', response.data)
+  return response.json()
+})
+.then(data => {
+  console.log('Response data:', data)
 })
 .catch(error => {
   console.error('Request error:', error)
@@ -56,6 +59,130 @@ fetchClient.fetch({
   data: { name: 'John', age: 30 }
 })
 ```
+
+By default, `fetch()` resolves to the native `Response` object. Response interceptors can transform that value or attach additional fields for your application.
+
+## TypeScript Support
+
+fetch-prog is written in TypeScript and exports request, response, and error types for application code.
+
+### Response Type
+
+`fetch<TRes>()` resolves to `Promise<TRes>`. When `TRes` is omitted, the result is typed as `ExtendableResponse`, which is equivalent to the native `Response` unless you extend it.
+
+```typescript
+import Fetch from 'fetch-prog'
+import type { ExtendableResponse } from 'fetch-prog'
+
+const client = new Fetch()
+
+const res = await client.fetch({ url: '/users' })
+const data = await res.json()
+
+type AppResponse = ExtendableResponse<{
+  readonly data: Promise<unknown>
+}>
+
+const appRes = await client.fetch<AppResponse>({ url: '/users' })
+const appData = await appRes.data
+```
+
+Use `ExtendableResponse<E>` for fields that your response interceptors add, such as `data`, `cookies`, or normalized metadata. The runtime value should still be produced by your interceptor.
+
+### Request Data Type
+
+The `data` option accepts serializable request bodies and common non-JSON payloads. For JSON-like request bodies, fetch-prog rejects non-serializable values at type level, so objects containing values such as `symbol`, `function`, or `bigint` are reported before runtime. If the request body is part of your API contract, pass it as the second generic parameter.
+
+| Usage | Example | Validation |
+|------|---------|------------|
+| Basic request data | `fetch<TRes>({ data })` | Accepts JSON-like values plus supported stream/binary payloads |
+| Contract request data | `fetch<TRes, TData>({ data })` | Requires `data` to match `TData` and remain serializable |
+
+```typescript
+type User = {
+  id: string
+  name: string
+}
+
+type CreateUserRequest = {
+  name: string
+  age: number
+}
+
+type CreateUserResponse = {
+  user: User
+}
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data: { name: 'John', age: 30 }
+})
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data: { name: 'John', age: 30, extra: true } // TypeScript error
+})
+
+await client.fetch({
+  url: '/users',
+  method: 'POST',
+  data: { name: 'John', token: Symbol('token') } // TypeScript error
+})
+
+await client.fetch({
+  url: '/upload',
+  method: 'POST',
+  data: new FormData()
+})
+```
+
+Serializable values include `string`, `number`, `boolean`, `null`, `undefined`, `Date`, boxed `String` / `Number` / `Boolean` values, arrays, and plain objects. `FormData`, `Blob`, `ArrayBuffer`, `ReadableStream`, and `string` payloads are also supported for non-JSON requests.
+
+### Request Data Inference
+
+The default `fetch<TRes>()` form works best with inline object literals because TypeScript can check the object directly against the serializable request body type.
+
+```typescript
+await client.fetch<CreateUserResponse>({
+  url: '/users',
+  method: 'POST',
+  data: { name: 'John', age: 30 }
+})
+```
+
+When `data` comes from an `interface`-typed variable, TypeScript may not be able to prove that the value satisfies the default recursive serializable type. In that case, prefer the two-generic form instead of weakening the value to `any`.
+
+```typescript
+interface CreateUserRequest {
+  name: string
+  age: number
+}
+
+const data: CreateUserRequest = {
+  name: 'John',
+  age: 30
+}
+
+await client.fetch<CreateUserResponse, CreateUserRequest>({
+  url: '/users',
+  method: 'POST',
+  data
+})
+```
+
+Use this pattern for typed API request objects: the first generic describes the response, and the second generic describes the request body contract.
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+| `ExtendableResponse<E>` | Native `Response` with application-defined response fields |
+| `SerializableParam<T>` | Serializable request body constraint for `fetch<TRes, TData>()` |
+| `LooseFetchData` | Supported request body values for regular `fetch<TRes>()` calls |
+| `Options` | Request options |
+| `FetchError` | Request/response error |
 
 ## Progress Monitoring
 
@@ -141,13 +268,14 @@ fetchClient.guard({
 // Add response interceptor
 fetchClient.guard({
   response: (config, response) => {
-    // Do something with the response data
-    // For example: Uniform data format processing
-    return {
-      ...response,
-      // Assuming response data is in response.body
-      data: response.json()
-    }
+    // `response` is ExtendableResponse (defaults to native Response).
+    // Attach custom fields as needed; the return value becomes the next
+    // interceptor input and ultimately what fetch() resolves to.
+    const data = response.json()
+    Object.defineProperty(response, 'data', {
+      value: data
+    })
+    return response
   }
 })
 ```
@@ -192,7 +320,7 @@ fetchClient.unGuard({ request: requestInterceptorId })
 | `baseURL` | string | '' | Base URL, automatically prepended to `url` |
 | `headers` | HeadersInit | {} | Request headers |
 | `params` | object/array | - | URL parameters |
-| `data` | any | - | Request data |
+| `data` | `LooseFetchData` / `SerializableParam<T>` | - | Request body. Use `fetch<TRes, TData>()` when the body should be checked against an API contract. |
 | `contentLength` | number | - | Request content length (for progress calculation) |
 | `timeout` | number | 60000 | Request timeout in milliseconds |
 | `withCredentials` | boolean | false | Whether to carry credentials |
@@ -330,6 +458,10 @@ fetchClient.fetch({
 4. **Use throttle to optimize progress updates**: When handling upload/download progress, use throttle to limit update frequency and avoid excessive UI updates
 
 5. **Separate error handling**: Centralize error handling logic in one place for convenient unified management of error display
+
+6. **Type custom response fields explicitly**: Use `ExtendableResponse<{ ... }>` for fields added by response interceptors
+
+7. **Type API request bodies**: Use `fetch<TRes, TData>()` when request payloads should match server contracts
 
 ## Support
 

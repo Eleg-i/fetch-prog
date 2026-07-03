@@ -1,12 +1,15 @@
 import { merge } from '../node_modules/es-toolkit/dist/object/merge.mjs'
+import type { ExtendableResponse, LooseFetchData, SerializableParam } from './types/serializable'
 import { pipeThroughWithError, type Progress } from './utils/bytes'
 import { treeShake } from './utils/object'
 import { isSameOrigin, joinPath } from './utils/url'
 
+export type { ExtendableResponse, LooseFetchData, SerializableParam } from './types/serializable'
+
 type GuardError = (err: FetchError) => Promise<FetchError | void> | FetchError | void
 type GuradRequest = (config: Options) => Options
 // 响应拦截器，在第一个拦截器中接收 Response，后续接收上一个拦截器的返回值，报错返回 undefined
-type GuardResponse = (config: Options, res: Response | ModResponse) => unknown
+type GuardResponse = (config: Options, res: ExtendableResponse) => unknown
 
 interface AbortEvent extends Event {
   currentTarget:
@@ -16,18 +19,16 @@ interface AbortEvent extends Event {
     | null
 }
 
-export interface ModResponse extends Response {
-  readonly data: Promise<Serializable | ArrayBuffer | FormData>
-  readonly cookies: Record<string, string>
-  readonly _originalResponse?: ModResponse
-}
-
 type GuardType = {
   request?: GuradRequest | { handler?: GuradRequest; errorHandler?: GuardError }
   response?: GuardResponse | { handler?: GuardResponse; errorHandler?: GuardError }
 }
 
-type Body = Serializable | ReadableStream<Uint8Array>
+type Body = LooseFetchData
+
+type FetchImplOptions = Omit<Options, 'data'> & {
+  data?: LooseFetchData | object
+}
 
 // 请求选项
 interface Options {
@@ -232,7 +233,7 @@ export default class Fetch {
   }
 
   /**
-   * 发送 http 请求
+   * 发送 http 请求（模式一：仅校验 data 可序列化）
    * @param opt                   请求选项
    * @param opt.url               请求地址
    * @param [opt.method]          请求方法
@@ -244,12 +245,36 @@ export default class Fetch {
    * @param [opt.isRetry]         是否为重试请求
    * @returns 返回响应
    */
-  fetch<
-    T extends Serializable = undefined,
-    R = Omit<Response, 'data'> & {
-      data: T
+  fetch<TRes = ExtendableResponse>(
+    opt: Omit<Options, 'data'> & {
+      data?: LooseFetchData
     }
-  >(opt: Options): Promise<R> {
+  ): Promise<TRes>
+
+  /**
+   * 发送 http 请求（模式二：data 与 DataT 严格一致且可序列化）
+   * @param opt                   请求选项
+   * @param opt.url               请求地址
+   * @param [opt.method]          请求方法
+   * @param [opt.baseURL]         请求基准地址
+   * @param [opt.headers]         请求头
+   * @param [opt.data]            请求载荷
+   * @param [opt.timeout]         超时时间
+   * @param [opt.withCredentials] 是否携带凭据
+   * @param [opt.isRetry]         是否为重试请求
+   * @returns 返回响应
+   */
+  fetch<TRes, TData>(
+    opt: Omit<Options, 'data'> & {
+      data?: SerializableParam<TData>
+    }
+  ): Promise<TRes>
+
+  /**
+   * 执行请求并根据请求方法分发到对应处理流程
+   * @param opt 请求选项
+   */
+  fetch(opt: FetchImplOptions): Promise<unknown> {
     const { url, method = 'GET' } = opt
 
     if (!url) throw new Error('请求地址不能为空！')
@@ -259,12 +284,12 @@ export default class Fetch {
     // 清除未定义值的参数
     if (typeof data === 'object' && data && !Array.isArray(data)) treeShake(data)
 
-    const mergedOpt = merge({ ...this.#fetchDefaultOpt }, opt)
+    const mergedOpt = merge({ ...this.#fetchDefaultOpt }, opt) as Options
 
     if (['GET', 'DELETE', 'OPTIONS', 'HEAD'].includes(method))
-      return this.#get(mergedOpt) as Promise<R>
+      return this.#get(mergedOpt) as Promise<unknown>
 
-    if (['POST', 'PUT'].includes(method)) return this.#post(mergedOpt) as Promise<R>
+    if (['POST', 'PUT'].includes(method)) return this.#post(mergedOpt) as Promise<unknown>
 
     throw new Error(`请求方法 ${method} 不允许！`)
   }
@@ -455,7 +480,8 @@ export default class Fetch {
       }
     })()
 
-    let result: ModResponse | Response | undefined = await req
+    let result: ExtendableResponse | undefined = await req
+
     const { status, statusText, ok } = result
     const resHandlers = this.#interceptors.response.handlers
 
@@ -466,7 +492,8 @@ export default class Fetch {
         opt: transfOpt
       })
 
-    for (const handler of resHandlers) result = (await handler(transfOpt, result)) as ModResponse
+    for (const handler of resHandlers)
+      result = (await handler(transfOpt, result)) as ExtendableResponse
 
     return result!
   }
@@ -619,9 +646,7 @@ function genUrlByBase(url: string, baseURL?: string) {
 }
 
 // 可序列化类型序列化后的类型
-type SerializedData =
-  | Exclude<SerializableValue, number | boolean | null | Date>
-  | ReadableStream<Uint8Array>
+type SerializedData = string | ReadableStream<Uint8Array> | FormData | ArrayBuffer | Blob
 
 /**
  * 序列化对象
